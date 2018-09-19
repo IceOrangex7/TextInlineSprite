@@ -19,15 +19,6 @@ namespace EmojiUI
 
 		private InlineText cachetext;
 
-		public void DoFillMesh()
-		{
-			
-		}
-
-		public void RecordTextUpdate(InlineText text)
-		{
-			throw new System.NotImplementedException();
-		}
 
 		void FillSpriteTag(InlineText text,StringBuilder stringBuilder, Match match,int matchindex, int atlasId,string atlasTag)
 		{

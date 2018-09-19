@@ -12,6 +12,11 @@ namespace EmojiUI
 		RenderBoth,
 	}
 
+    public enum EmojiRenderMesh
+    {
+        Emoji,
+    }
+
 	public interface IEmojiRender
 	{
 		EmojiRenderType renderType { get; }
