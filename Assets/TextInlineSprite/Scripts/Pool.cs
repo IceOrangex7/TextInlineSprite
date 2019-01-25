@@ -51,21 +51,6 @@ namespace EmojiUI
 		}
 	}
 
-	internal static class UnitMeshInfoPool
-	{
-		// Object pool to avoid allocations.
-		private static readonly ObjectPool<UnitMeshInfo> s_ListPool = new ObjectPool<UnitMeshInfo>(null, l => l.Clear());
-
-		public static UnitMeshInfo Get()
-		{
-			return s_ListPool.Get();
-		}
-
-		public static void Release(UnitMeshInfo toRelease)
-		{
-			s_ListPool.Release(toRelease);
-		}
-	}
 
 	internal static class ListPool<T>
 	{

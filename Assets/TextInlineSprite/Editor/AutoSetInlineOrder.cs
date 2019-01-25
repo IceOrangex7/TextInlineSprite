@@ -14,8 +14,8 @@ public class AutoSetInlineOrder : MonoBehaviour {
 		{
 			if (monoScript.name == "InlineManager")
 			{
-				if(MonoImporter.GetExecutionOrder(monoScript) != 10)
-					MonoImporter.SetExecutionOrder(monoScript, 10);
+				if(MonoImporter.GetExecutionOrder(monoScript) != -10)
+					MonoImporter.SetExecutionOrder(monoScript, -10);
 			}
 		}
 	}

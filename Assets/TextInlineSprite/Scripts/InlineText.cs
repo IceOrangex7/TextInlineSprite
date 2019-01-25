@@ -20,152 +20,63 @@ namespace EmojiUI
 {
 	public class InlineText : Text
 	{
-		private static StringBuilder _textBuilder = new StringBuilder();
-		private static UIVertex[] m_TempVerts = new UIVertex[4];
-		private static Vector3[] m_TagVerts = new Vector3[2];
-		/// <summary>
-		/// Security usually means additional performance overhead. If you control the bounding box yourself, this calculation may be redundant.
-		/// </summary>
-		public static bool safeMode = true;
-		
-		private InlineManager _InlineManager;
-		//文本表情管理器
-		public InlineManager Manager
-		{
-			get
-			{
-				if (!_InlineManager && canvas != null)
-				{
-					_InlineManager = GetComponentInParent<InlineManager>();
-					if (_InlineManager == null)
-					{
-						_InlineManager = canvas.gameObject.AddComponent<InlineManager>();
-					}
-				}
-				return _InlineManager;
-			}
-		}
+        private string _rendertext;
+        public string EmojiText
+        {
+            get
+            {
+                if(_rendertext == null)
+                {
+                    return m_Text;
+                }
+                return _rendertext;
+            }
+        }
 
-		List<IFillData> _renderTagList;
-		private string _lasttext ;
-		private string _outputText = "";
-		private float? _pw;
+        public override float preferredWidth
+        {
+            get
+            {
+                var settings = GetGenerationSettings(Vector2.zero);
+                float wid = cachedTextGeneratorForLayout.GetPreferredWidth(EmojiText, settings) / pixelsPerUnit;
+                if (horizontalOverflow == HorizontalWrapMode.Overflow)
+                {
+                    return wid;
+                }
+                else
+                {
+                    return Mathf.Min(wid, rectTransform.rect.size.x);
+                }
 
-		public override float preferredWidth
-		{
-			get
-			{
-				if (_pw == null)
-				{
-					//its override from uGUI Code ,but has bug?
+            }
+        }
 
-					//var settings = GetGenerationSettings(Vector2.zero);
-					//return cachedTextGeneratorForLayout.GetPreferredWidth(_OutputText, settings) / pixelsPerUnit;
+        private InlineManager _manager;
+        public InlineManager Manager
+        {
+            get
+            {
+                if(_manager == null)
+                {
+                    _manager = GetComponentInParent<InlineManager>();
+                }
+                return _manager;
+            }
+        }
 
-					//next idea
-					Vector2 extents = rectTransform.rect.size;
-
-					var settings = GetGenerationSettings(extents);
-					cachedTextGenerator.Populate(_outputText, settings);
-
-					if (cachedTextGenerator.lineCount > 1)
-					{
-						float? minx = null;
-						float? maxx = null;
-						IList<UIVertex> verts = cachedTextGenerator.verts;
-						int maxIndex = cachedTextGenerator.lines[1].startCharIdx;
-
-						for (int i = 0, index = 0; i < verts.Count; i += 4, index++)
-						{
-							UIVertex v0 = verts[i];
-							UIVertex v2 = verts[i + 1];
-							float min = v0.position.x;
-							float max = v2.position.x;
-
-							if (minx.HasValue == false)
-							{
-								minx = min;
-							}
-							else
-							{
-								minx = Mathf.Min(minx.Value, min);
-							}
-
-							if (maxx.HasValue == false)
-							{
-								maxx = max;
-							}
-							else
-							{
-								maxx = Mathf.Max(maxx.Value, max);
-							}
-
-							if (index > maxIndex)
-							{
-								break;
-							}
-						}
-
-						_pw = (maxx - minx);
-					}
-					else
-					{
-						//_pw = cachedTextGeneratorForLayout.GetPreferredWidth(_OutputText, settings) / pixelsPerUnit;
-						float? minx = null;
-						float? maxx = null;
-						IList<UIVertex> verts = cachedTextGenerator.verts;
-						int maxIndex = cachedTextGenerator.characterCount;
-
-						for (int i = 0, index = 0; i < verts.Count; i += 4, index++)
-						{
-							UIVertex v0 = verts[i];
-							UIVertex v2 = verts[i + 1];
-							float min = v0.position.x;
-							float max = v2.position.x;
-
-							if (minx.HasValue == false)
-							{
-								minx = min;
-							}
-							else
-							{
-								minx = Mathf.Min(minx.Value, min);
-							}
-
-							if (maxx.HasValue == false)
-							{
-								maxx = max;
-							}
-							else
-							{
-								maxx = Mathf.Max(maxx.Value, max);
-							}
-
-							if (index > maxIndex)
-							{
-								break;
-							}
-						}
-
-						_pw = (maxx - minx);
-					}
-
-				}
-				return _pw.Value;
-			}
-		}
-
-		public override float preferredHeight
+        public override float preferredHeight
 		{
 			get
 			{
 				var settings = GetGenerationSettings(new Vector2(GetPixelAdjustedRect().size.x, 0.0f));
-				return cachedTextGeneratorForLayout.GetPreferredHeight(_outputText, settings) / pixelsPerUnit;
-			}
+				float height = cachedTextGeneratorForLayout.GetPreferredHeight(EmojiText, settings) / pixelsPerUnit;
+                return height;
+            }
 		}
 
 		void OnDrawGizmos()
 		{
+            var oldcol = Gizmos.color;
 			Gizmos.color = Color.blue;
 
 			var corners = new Vector3[4];
@@ -173,80 +84,123 @@ namespace EmojiUI
 
 			Gizmos.DrawLine(corners[0], corners[1]);
 			Gizmos.DrawLine(corners[1], corners[2]);
-			Gizmos.DrawLine(corners[3], corners[3]);
+			Gizmos.DrawLine(corners[2], corners[3]);
 			Gizmos.DrawLine(corners[3], corners[0]);
-		}
 
-		protected override void Start()
+            if(Manager && Manager.Settings.OpenDrawPreferred)
+            {
+                Gizmos.color = Color.cyan;
+
+                var wid = preferredWidth;
+                var height = preferredHeight;
+                Vector3 point = Vector3.zero;// transform.InverseTransformPoint(center);
+                int alignH = (int)alignment % 3; // 左中右 0，1，2 // 0 => 1.5  1=>1 2 =>-1.5
+                int alignV = (int)alignment / 3;// 上中下  0,1,2   //
+                Vector3 p1, p2, p3, p4;
+                p1 = p2 = p3 = p4 = Vector3.zero;
+
+                //使用objectspace
+                rectTransform.GetLocalCorners(corners);
+
+                float deltax = -0.5f;
+                float deltay = -0.5f;
+                float deltarx = 0.5f;
+                float deltary = 0.5f;
+
+                point.x = alignH == 1 ? (corners[0] + corners[3]).x / 2 : (corners[alignH] + corners[(alignH + 1) % 4]).x / 2;
+                point.y = alignV == 1 ? (corners[1] + corners[0]).y / 2 : (corners[(alignV + 1) % 4] + corners[(alignV + 2) % 4]).y / 2;
+                if (alignH > 1) //2
+                {
+                    deltax = -1f;
+                    deltarx = 0f;
+                }
+                else if (alignH < 1) //0
+                {
+                    deltax = 0f;
+                    deltarx = 1f;
+                }
+
+                if (alignV > 1)
+                {
+                    deltay = 1f;
+                    deltary = 0f;
+                }
+                else if (alignV < 1)
+                {
+                    deltay = 0f;
+                    deltary = -1f;
+                }
+
+
+                p1 = transform.TransformPoint(point + new Vector3(deltax * wid, deltary * height));
+                p2 = transform.TransformPoint(point + new Vector3(deltarx * wid, deltary * height));
+                p3 = transform.TransformPoint(point + new Vector3(deltarx * wid, deltay * height));
+                p4 = transform.TransformPoint(point + new Vector3(deltax * wid, deltay * height));
+
+                Gizmos.DrawLine(p1, p2);
+                Gizmos.DrawLine(p2, p3);
+                Gizmos.DrawLine(p3, p4);
+                Gizmos.DrawLine(p4, p1);
+
+#if UNITY_EDITOR
+                UnityEditor.Handles.Label((p1 + p2) / 2, "wid=" + wid);
+                UnityEditor.Handles.Label((p3 + p2) / 2, "height=" + height);
+#endif
+            }
+
+            Gizmos.color = oldcol;
+#if UNITY_EDITOR
+            DrawDebug();
+#endif
+        }
+
+        protected override void Start()
 		{
 			base.Start();
 
 			EmojiTools.AddUnityMemory(this);
 		}
 
-		public override void SetVerticesDirty()
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+        }
+
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+        }
+
+        public override void SetVerticesDirty()
 		{
-			base.SetVerticesDirty();
-			if (Application.isPlaying && this.isActiveAndEnabled)
+            if (font == null)
+                return;
+
+            if (Application.isPlaying && this.isActiveAndEnabled )
 			{
-				if (!Manager)
-				{
-					_outputText = m_Text;
-				}
-				else if(Manager.HasInit)
-				{
-					DoUpdateEmoji();
-				}
-				else
-				{
-					StartCoroutine(WaitManagerInited());
-				}
-			}
+                if(!m_DisableFontTextureRebuiltCallback )
+                {
+                    if (Manager!= null)
+                    {
+                        Manager.Rebuild(this);
+                    }
+                }
+			    base.SetVerticesDirty();
+            }
 			else
 			{
-				_outputText = m_Text;
-			}
+			    base.SetVerticesDirty();
+            }
 		}
 
-		IEnumerator WaitManagerInited()
-		{
-			while (Manager != null && !Manager.HasInit)
-			{
-				yield return null;
-			}
-
-			DoUpdateEmoji();
-		}
-
-		void DoUpdateEmoji()
-		{
-			if(m_Text != null && !m_Text.Equals(_lasttext) )
-			{
-				ClearFillData();
-				_lasttext = m_Text;
-				ParserTransmit.mIns.DoParse(this, _textBuilder, m_Text);
-
-				_outputText = _textBuilder.ToString();
-				_textBuilder.Length = 0;
-			}	
-		}
-
-		protected override void OnDestroy()
+        protected override void OnDestroy()
 		{
 			base.OnDestroy();
 
-			if (_renderTagList != null)
-			{
-				ListPool<IFillData>.Release(_renderTagList);
-				_renderTagList = null;
-			}
+            StopAllCoroutines();
 
-			if (Manager)
-			{
-				Manager.UnRegister(this);
-			}
 
-			EmojiTools.RemoveUnityMemory(this);
+            EmojiTools.RemoveUnityMemory(this);
 		}
 
 		protected override void OnPopulateMesh(VertexHelper toFill)
@@ -254,203 +208,89 @@ namespace EmojiUI
 			if (font == null)
 				return;
 
-			// We don't care if we the font Texture changes while we are doing our Update.
-			// The end result of cachedTextGenerator will be valid for this instance.
-			// Otherwise we can get issues like Case 619238.
-			m_DisableFontTextureRebuiltCallback = true;
+            ParseGroup textresult;
+            UIMeshGroup mesh;
+            if (Application.isPlaying && isActiveAndEnabled && Manager != null
+             && Manager.GetUIMeshGroup(this,out mesh) && Manager.GetParseGroup(this,out textresult))
+            {
+                m_DisableFontTextureRebuiltCallback = true;
 
-			Vector2 extents = rectTransform.rect.size;
+                toFill.Clear();
+                RenderText(toFill, ref mesh);
+                _rendertext = textresult.TextResult.FormatString;
 
-			var settings = GetGenerationSettings(extents);
-			cachedTextGenerator.PopulateWithErrors(_outputText, settings, gameObject);
-
-			// Apply the offset to the vertices
-			IList<UIVertex> verts = cachedTextGenerator.verts;
-			float unitsPerPixel = 1 / pixelsPerUnit;
-			//Last 4 verts are always a new line... (\n)
-			int vertCount = verts.Count - 4;
-			Vector2 roundingOffset = new Vector2(verts[0].position.x, verts[0].position.y) * unitsPerPixel;
-			roundingOffset = PixelAdjustPoint(roundingOffset) - roundingOffset;
-			toFill.Clear();
-
-			int nextfilldata = -1;
-			int fillindex = -1;
-			int startfilldata = -1;
-			
-			if (_renderTagList != null && _renderTagList.Count  >0)
-			{
-				var data = _renderTagList[0];
-				nextfilldata = data.GetPositionIdx() ;
-				//at least one 
-				startfilldata = nextfilldata - (data.GetFillCnt()-1) * 4-3;
-				fillindex = 0;
-
-				Manager.Register(this);
-			}
-			else
-			{
-				Manager.UnRegister(this);
-			}
-			
-			if (roundingOffset != Vector2.zero)
-			{
-				for (int i = 0; i < vertCount; ++i)
-				{
-					int tempVertsIndex = i & 3;
-					m_TempVerts[tempVertsIndex] = verts[i];
-					m_TempVerts[tempVertsIndex].position *= unitsPerPixel;
-					m_TempVerts[tempVertsIndex].position.x += roundingOffset.x;
-					m_TempVerts[tempVertsIndex].position.y += roundingOffset.y;
-
-					//first
-					if (startfilldata >= 0 && i == startfilldata)
-					{
-						m_TagVerts[0]= m_TempVerts[tempVertsIndex].position;
-					}
-
-					//third
-					if (nextfilldata >= 0 && i == nextfilldata - 1)
-					{
-						m_TagVerts[1] = m_TempVerts[tempVertsIndex].position;
-					}
-
-					if (tempVertsIndex == 3)
-					{
-						//skip
-						if ( i < startfilldata || i > nextfilldata )
-						{
-							toFill.AddUIVertexQuad(m_TempVerts);
-						}
-
-						if (nextfilldata >=0 && i >= nextfilldata)
-						{
-							FillNextTag(ref startfilldata,ref nextfilldata,ref fillindex);
-						}
-					}
-				}
-			}
-			else
-			{
-				for (int i = 0; i < vertCount; ++i)
-				{
-					int tempVertsIndex = i & 3;
-					m_TempVerts[tempVertsIndex] = verts[i];
-					m_TempVerts[tempVertsIndex].position *= unitsPerPixel;
-
-					//first
-					if (startfilldata >= 0 && i == startfilldata)
-					{
-						m_TagVerts[0] = m_TempVerts[tempVertsIndex].position;
-					}
-
-					//third
-					if (nextfilldata >= 0 && i == nextfilldata - 1)
-					{
-						m_TagVerts[1] = m_TempVerts[tempVertsIndex].position;
-					}
-
-					if (tempVertsIndex == 3)
-					{
-						//skip
-						if ( startfilldata == -1 || (startfilldata >=0 && i < startfilldata) ||  (nextfilldata >= 0 &&  i > nextfilldata ))
-						{
-							toFill.AddUIVertexQuad(m_TempVerts);
-						}
-
-						if (nextfilldata >=0 && i >= nextfilldata)
-						{
-							FillNextTag(ref startfilldata,ref nextfilldata,ref fillindex);
-						}
-					}
-				}
-			}
-
-			m_DisableFontTextureRebuiltCallback = false;
-			//
-
-			if(safeMode)
-			{
-				CalBoundsInSafe();
-			}
-
+                m_DisableFontTextureRebuiltCallback = false;
+            }
+            else
+            {
+                _rendertext = null;
+                base.OnPopulateMesh(toFill);
+            }
 		}
 
-		void CalBoundsInSafe()
-		{
-			if(_renderTagList != null && _renderTagList.Count>0)
-			{
-				Rect rect = rectTransform.rect;
-				for (int i = _renderTagList.Count - 1; i >= 0; i--)
-				{
-					IFillData data = _renderTagList[i];
-					if (rect.Contains(data.pos[1]) && rect.Contains(data.pos[3]))
-					{
-						data.ignore = false;
-					}
-					else
-					{
-						data.ignore = true;
-					}
-				}
-			}
-		}
+        void RenderText(VertexHelper toFill,ref UIMeshGroup meshgroup)
+        {
+            var mesh = meshgroup.TextMeshResult;
+            if (mesh.TextVerts != null)
+            {
+                for (int i = 0; i < mesh.TextVerts.Count; i +=4)
+                {
+                    int vertcnt = toFill.currentVertCount;
+                    toFill.AddVert(mesh.TextVerts[i]);
+                    toFill.AddVert(mesh.TextVerts[i+1]);
+                    toFill.AddVert(mesh.TextVerts[i +2]);
+                    toFill.AddVert(mesh.TextVerts[i +3]);
 
-		void FillNextTag(ref int startfilldata,ref int nextfilldata,ref int fillindex)
-		{
-			if(_renderTagList != null && fillindex >=0)
-			{
-				//fill current
-				var current = _renderTagList[fillindex];
-				current.Fill(m_TagVerts[0],m_TagVerts[1]);
+                    toFill.AddTriangle(vertcnt, vertcnt + 1, vertcnt + 2);
+                    toFill.AddTriangle(vertcnt + 2, vertcnt + 3, vertcnt);
+                }
+            }
+        }
 
-				fillindex++;
-				if (fillindex < _renderTagList.Count)
-				{
-					//update next
-					var data = _renderTagList[fillindex];
-					nextfilldata = data.GetPositionIdx();
-					startfilldata = nextfilldata - (data.GetFillCnt() - 1) * 4 - 3;
-				}
-				else
-				{
-					startfilldata = -1;
-					nextfilldata = -1;
-					fillindex = -1;
-				}
-			}
-		}
+#if UNITY_EDITOR
+        DrawGizmosSystem.DrawedGizmos? _dgData;
+        public void DrawGizmos(ref DrawGizmosSystem.DrawedGizmos data)
+        {
+            _dgData = data;
+        }
 
+        void DrawDebug()
+        {
+            if(_dgData.HasValue && isActiveAndEnabled)
+            {
+                var col = Gizmos.color;
+                if (_dgData.Value.Quads != null && _dgData.Value.Quads.Count > 1)
+                {
+                    Color whitecol = Color.white;
+                    for (int i = 0; i < _dgData.Value.Quads.Count; i+=4)
+                    {
+                        Gizmos.color = new Color32((byte)((0 + i *10) %256), (byte)((0 + i * 10) % 256), 255, 255);
+                        DrawLine(_dgData.Value.Quads[i], _dgData.Value.Quads[i + 1]);
+                        DrawLine(_dgData.Value.Quads[i+1], _dgData.Value.Quads[i + 2]);
+                        DrawLine(_dgData.Value.Quads[i+2], _dgData.Value.Quads[i + 3]);
+                        DrawLine(_dgData.Value.Quads[i +3], _dgData.Value.Quads[i ]);
+                    }
+                }
 
-		internal List<IFillData> PopEmojiData()
-		{
-			return _renderTagList;
-		}
+                if(_dgData.Value.QuadLabel != null&& _dgData.Value.QuadLabel.Count >0)
+                {
+                    for (int i = 0; i < _dgData.Value.QuadLabel.Count; i++)
+                    {
+                        var data = _dgData.Value.QuadLabel[i];
+                        UnityEditor.Handles.Label(data.Key, data.Value);
+                    }
+                }
 
-		void ClearFillData()
-		{
-			if(_renderTagList != null)
-			{
-				_renderTagList.Clear();
-			}
-		}
+                Gizmos.color = _dgData.Value.color;
+            }
+        }
+#endif
 
-		internal void AddFillData(IFillData data)
-		{
-			if(_renderTagList == null)
-			{
-				_renderTagList = ListPool<IFillData>.Get();
-			}
-			this._renderTagList.Add(data);
-		}
-
-		internal void RemoveFillData(IFillData data)
-		{
-			if(_renderTagList != null)
-			{
-				_renderTagList.Remove(data);
-			}
-		}	
-	}
+        void DrawLine(Vector3 s1,Vector3 s2)
+        {
+            Gizmos.DrawLine(transform.TransformPoint(s1), transform.TransformPoint(s2));
+        }
+    }
 }
 
 
